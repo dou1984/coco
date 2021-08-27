@@ -13,6 +13,7 @@ namespace ashan
 		std::regex e0{ R"((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d+))" };
 		std::regex e1{ R"(:(\d+))" };
 		std::regex ea{ R"((\S+)/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+))" };
+		std::regex eb{ R"((\S+)/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d+))" };
 	public:
 		evAddr() = default;
 
@@ -20,9 +21,11 @@ namespace ashan
 
 		bool search(const std::string& name, std::string& ip, int& port);
 
-		bool search(const std::string& name, std::string& addr, std::string& ip, int& port);
+		bool search(const std::string& name, std::string& exe, std::string& ip, int& port);
 
-		bool splite(const std::string& str, std::string& name, std::string& addr);
+		bool splite(const std::string& path, std::string& exe, std::string& addr);
+
+		bool splite(const std::string& path, std::string& exe, std::string& ip, int& port);
 
 		std::string combine(const std::string& ip, int port);
 

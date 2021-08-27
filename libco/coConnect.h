@@ -15,7 +15,7 @@ namespace ashan
 		//coFunc co_process;
 	public:		
 		//int set(const coFunc&);		
-		awtConnect co_connect(const char* ip, int port);	
+		awtConnect co_connect(const std::string& _addr);
 		int on_connect(int fd, const char* ip, int port);
 		int err_connect(int fd, const char* _ip, int _port);
 		int on_close(int fd);

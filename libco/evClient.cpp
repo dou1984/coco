@@ -8,7 +8,6 @@
 #include <arpa/inet.h>
 #include "evLoop.h"
 #include "evClient.h"
-#include "CLog.h"
 #include "coMsg.h"
 
 #define DEFBUFLEN (0x10000)
@@ -23,7 +22,7 @@ namespace ashan
 		auto& _buf = _this->m_ReadBuffer;
 		int iCount = _buf.append([=](auto _buffer, auto _size) {
 			return ::recv(_this->m_fd, _buffer, _size, 0);
-			});
+			});		
 		if (iCount > 0)
 		{
 			_this->on_recv();
@@ -53,11 +52,16 @@ namespace ashan
 				auto r = ::send(_this->m_fd, _buf.data(), _buf.size(), 0);
 				if (r >= 0)
 				{
-					_list.pop_front();
+					_list.pop_front();					
 				}
 				else if (!(errno == EAGAIN || errno == EINPROGRESS || errno == EINTR))
 				{
 					_this->_close();
+				}
+				else
+				{
+					ev_io_start(EV_A_ w);
+					return;
 				}
 				assert(r != 0);
 			}
@@ -122,33 +126,41 @@ namespace ashan
 	int evClient::_send(ioBuffer<char>& _buf)
 	{
 		assert(m_verify == MAGIC_WORD);
+		/*
 		m_WriteBuffer.emplace_back(std::move(_buf));
-		if (m_fd >= 0) [[unlikely]]
+		if (m_fd >= 0)
 		{
 			ev_io_start(evLoop::at(m_tag), &m_Write);
 			return 0;
 		}
-		return INVALID;	
-		/*
-		if (m_WriteBuffer.size() > 1) [[unlikely]]
-		{			
+		return INVALID;
+		*/
+		if (m_fd < 0) [[unlikely]]
+		{
+			m_WriteBuffer.emplace_back(std::move(_buf));
 			return 0;
-		}	
+		}
+			if (m_WriteBuffer.size() > 0) [[unlikely]]
+			{
+				m_WriteBuffer.emplace_back(std::move(_buf));
+				ev_io_start(evLoop::at(m_tag), &m_Write);
+				return 0;
+			}
 		auto r = ::send(m_fd, _buf.data(), _buf.size(), 0);
 		if (r < 0) [[unlikely]]
-		{		
+		{
 			if (errno == EAGAIN || errno == EINPROGRESS || errno == EINTR)
-			{				
+			{
+				m_WriteBuffer.emplace_back(std::move(_buf));
 				ev_io_start(evLoop::at(m_tag), &m_Write);
 				return 0;
 			}
 			else
-			{				
+			{
 				_close();
 			}
-		}		
+		}
 		return r;
-		*/
 	}
 	int evClient::_send(const char* buffer, int _size)
 	{
@@ -165,7 +177,7 @@ namespace ashan
 		assert(fd != INVALID);
 		assert(m_verify == MAGIC_WORD);
 		if (m_Close)
-			m_Close->on_close(fd);
+			m_Close->on_close(fd);		
 		return 0;
 	}
 }

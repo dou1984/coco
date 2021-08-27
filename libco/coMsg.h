@@ -9,7 +9,11 @@ namespace ashan
 	struct coMsg
 	{
 		uint32_t length;
-		uint32_t index;
+		union
+		{
+			uint32_t index;
+			struct { uint16_t cmd; uint16_t reserve; };
+		};
 		char data[];
 		coMsg() = default;
 		coMsg(uint32_t l, uint32_t idx = 0) : length(l), index(idx)

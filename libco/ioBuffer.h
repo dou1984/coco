@@ -31,7 +31,9 @@ namespace ashan
 		~ioBuffer()
 		{
 			if (m_buffer)
-				delete[] m_buffer;
+			{
+				delete[] m_buffer;				
+			}
 		}
 		void push_back(const _Type& other)
 		{

@@ -29,9 +29,9 @@ namespace ashan
 		if (m_client)
 			m_client->_clear();
 	}
-	coConnect::awtConnect coConnect::co_connect(const char* ip, int port)
+	coConnect::awtConnect coConnect::co_connect(const std::string& _addr)
 	{
-		int fd = evConnect::connect(ip, port);
+		int fd = evConnect::connect(_addr);
 		return { this , fd };
 	}
 	void coConnect::awtConnect::resume_ex()

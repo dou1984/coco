@@ -1,7 +1,7 @@
 ﻿HELLO_WORLD =
-TARGET = co
+TARGET = coco
 SUBDIR = 
-CXXFLAGS= -ggdb -O0 -std=c++2a -Wall -fPIC -frtti -fexceptions -fcoroutines -W -Wall -Wno-deprecated -Wno-unused-parameter -Wno-unused-variable -fstack-protector-all
+CXXFLAGS= -ggdb -O4 -std=c++2a -Wall -fPIC -frtti -fexceptions -fcoroutines -W -Wall -Wno-deprecated -Wno-unused-parameter -Wno-unused-variable -fstack-protector-all
 
 INCLUDE= -I./
 LIBSDIR= 

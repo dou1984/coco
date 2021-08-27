@@ -14,6 +14,12 @@ namespace ashan
 	class coClient final : public evClient, public evTimer, public std::enable_shared_from_this<coClient>
 	{	
 	public:
+		enum e_config
+		{
+			e_proto_comsg,	//使用解析coMsg
+			e_write_ack,	//send message成功后会收到ack消息 
+			e_config_end,
+		};		
 		struct awtRead : coList
 		{
 			coClient* _this = nullptr;
@@ -65,14 +71,17 @@ namespace ashan
 		void safe_append(coClient& o);
 		void set_waittime(size_t);
 		const coMsg* get_data();
+		uint32_t lastindex() { return m_index; }
 
-		awtRead co_read(uint32_t _idx);				
+		awtRead co_read(uint32_t _idx = e_rpc_sys_msg_custom);
 		awtWrite co_write(ioBuffer<char>& _buf);
-		awtWrite co_write_ex(ioBuffer<char>& _buf);
-		awtClose co_close();
+		awtWrite co_iwrite(ioBuffer<char>& _buf);//自动设置index
+		awtClose co_close();		
+		coTask co_rpc(ioBuffer<char>& _buf, std::function<void(const coMsg*)>&& f);
 	public:
 		std::string m_addr;
 		coFunc co_process;
+		std::bitset<e_config_end> m_config;
 	private:		
 		coList m_readlist;				
 		coList m_writelist;
@@ -80,6 +89,7 @@ namespace ashan
 		uint32_t m_index = 0;
 		uint32_t m_waittime = DEFINE_WAITTIME;
 		std::unordered_map<uint32_t, awtRead*> m_process;
+		std::list<awtRead*> m_process_list;
 	private:		
 		int on_close(int);
 		int on_timer();

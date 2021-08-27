@@ -37,10 +37,18 @@ namespace ashan
 			_this->on_accept(fd);
 	}
 
-	int evServer::_start(const char* ip, int port)
+	int evServer::_start(const std::string& _addr)
 	{
 		assert(m_Addr == "");
-		m_Addr = EVADDR.combine(ip, port);
+		//m_Addr = EVADDR.combine(ip, port);
+		std::string _exe;
+		std::string _ip;
+		int _port;
+		if (!EVADDR.splite(_addr, _exe, _ip, _port))
+		{
+			return INVALID;
+		}
+		m_Addr = _addr;
 		std::lock_guard<std::mutex> _lock(g_mutex);
 		auto it = g_addr_fd.find(m_Addr);
 		if (it != g_addr_fd.end())
@@ -68,8 +76,8 @@ namespace ashan
 		sockaddr_in addr;
 		memset(&addr, 0, sizeof(addr));
 		addr.sin_family = AF_INET;
-		addr.sin_port = htons(port);
-		addr.sin_addr.s_addr = inet_addr(ip);
+		addr.sin_port = htons(_port);
+		addr.sin_addr.s_addr = inet_addr(_ip.c_str());
 		if (addr.sin_addr.s_addr == INADDR_NONE)
 		{			
 			goto __error_return__;
@@ -92,11 +100,11 @@ namespace ashan
 	{
 		stop();
 	}
-	int evServer::start(const char* ip, int port)
+	int evServer::start(const std::string& _addr)
 	{
 		if (m_fd >= 0)
 			return m_fd;
-		_start(ip, port);
+		_start(_addr);
 		if (m_fd == INVALID)
 			return m_fd;
 		m_Accept.data = this;

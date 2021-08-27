@@ -1,6 +1,7 @@
 #ifndef LIBCO_H
 #define LIBCO_H
 
+#include "Common.h"
 #include "promise.h"
 #include "awaiter.h"
 #include "yield.h"

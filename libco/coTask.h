@@ -2,6 +2,8 @@
 #define CO_TASK_H
 #include <assert.h>
 #include <list>
+#include <bitset>
+#include "Common.h"
 #include "coList.h"
 #include "promise.h"
 #include "awaiter.h"

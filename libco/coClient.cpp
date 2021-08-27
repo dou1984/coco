@@ -1,4 +1,3 @@
-#include "CLog.h"
 #include "coClient.h"
 #include "coMsg.h"
 #include "awaiter.h"
@@ -8,11 +7,12 @@ using milliseconds = std::chrono::milliseconds;
 using system_clock = std::chrono::system_clock;
 
 namespace ashan
-{
-	bool g_proto_comsg = true;
+{	
 	coClient::coClient(int _fd, VClose *_Close) : evClient(_fd, _Close)
 	{
 		evTimer::start(2.0, 2.0);
+		m_config.set(e_proto_comsg);
+		m_config.set(e_write_ack);
 	}
 	coClient::~coClient()
 	{
@@ -20,8 +20,8 @@ namespace ashan
 		_write_clear();
 	}
 	int coClient::on_recv()
-	{
-		if (g_proto_comsg)
+	{		
+		if (m_config[e_proto_comsg])
 		{
 			while (is_ready())
 				on_process();
@@ -44,7 +44,7 @@ namespace ashan
 	{
 		coMsg *_msg = (coMsg *)m_ReadBuffer.data();
 		assert(m_ReadBuffer.size() >= sizeof(coMsg));
-		if (_msg->index != e_rpc_msg_ack)
+		if (_msg->index != e_rpc_sys_msg_ack)
 		{
 			send_ack();
 			on_process(_msg);
@@ -63,17 +63,31 @@ namespace ashan
 		{
 			co_process(shared_from_this());
 		}
-	}
-	void coClient::on_process(coMsg *msg)
-	{
-		auto idx = msg->index;
-		if (auto it = m_process.find(idx); it != m_process.end())
-		{
-			auto _awt = it->second;
-			_awt->set_return(msg->size());
-			_awt->resume_ex();
+		else
+		{			
+			CO_DBG("recv msg not process %s", m_ReadBuffer.data());
 		}
-		else if (co_process)
+	}
+	void coClient::on_process(coMsg* msg)
+	{		
+		if (auto it = m_process.find(msg->index); it != m_process.end())
+		{		
+			auto _awt = it->second;
+			_awt->set_return(msg->index);
+			_awt->resume_ex();
+			return;
+		}
+		if (IS_CUSTOM(msg->index))
+		{
+			if (auto it = m_process_list.begin();  it != m_process_list.end())
+			{				
+				auto _awt = *it;				
+				_awt->set_return(msg->index);
+				_awt->resume_ex();
+				return;
+			}
+		}
+		if (co_process)
 		{
 			co_process(shared_from_this());
 		}
@@ -89,25 +103,61 @@ namespace ashan
 		m_waittime = DEFINE_WAITTIME;
 		return {this, _idx, _waittime};
 	}
-	coClient::awtWrite coClient::co_write_ex(ioBuffer<char>& _buf)
+	coClient::awtWrite coClient::co_iwrite(ioBuffer<char>& _buf)
 	{
-		coMsg* _msg = (coMsg*)_buf.data();
-		if (++m_index >= MAX_RPC_INDEX) [[unlikely]]
-			m_index = 0;
-		_msg->index = m_index;
-		assert(_msg->size() == _buf.size());
+		const int min_index = MAX_SYS_INDEX + 1;
+		if (m_config[e_proto_comsg])
+		{
+			coMsg* _msg = (coMsg*)_buf.data();
+			if (++m_index < min_index) [[unlikely]]
+				m_index = min_index;
+			_msg->index = m_index;
+			assert(_msg->size() == _buf.size());
+		}
 		return co_write(_buf);
 	}
 	coClient::awtWrite coClient::co_write(ioBuffer<char>& _buf)
 	{
-		coMsg* _msg = (coMsg*)_buf.data();
-		assert(_msg->size() == _buf.size());
+		if (m_config[e_proto_comsg])
+		{
+			coMsg* _msg = (coMsg*)_buf.data();
+			assert(_msg->size() == _buf.size());
+			_send(_buf);
+			return { this, _msg->index, m_waittime };
+		}
 		_send(_buf);
-		return { this, _msg->index, m_waittime };
+		return { this, 0, m_waittime };
 	}
 	coClient::awtClose coClient::co_close()
 	{
 		return {this};
+	}
+	coTask coClient::co_rpc(ioBuffer<char>& _buf, std::function<void(const coMsg*)>&& _f)
+	{
+		auto f = std::move(_f);
+		if (valid())
+		{
+			auto _awt = co_iwrite(_buf);
+			auto index = lastindex();
+			auto r = co_await _awt;
+			if (IS_FAILED(r))
+			{
+				co_return;
+			}
+			assert(index > MAX_SYS_INDEX);			
+			r = co_await co_read(index);
+			if (IS_FAILED(r))
+			{
+				co_return;
+			}
+			try
+			{
+				f(get_data());
+			}
+			catch (...)
+			{
+			}
+		}
 	}
 	void coClient::safe_append(coClient& o)
 	{
@@ -128,19 +178,29 @@ namespace ashan
 	}
 	int coClient::send_ack()
 	{
-		coMsg ack(0, e_rpc_msg_ack);
-		return _send(ack.ptr(), ack.size());
+		if (m_config[e_write_ack])
+		{
+			coMsg ack(0, e_rpc_sys_msg_ack);
+			return _send(ack.ptr(), ack.size());
+		}
+		return 0;
 	}
-	uint32_t coClient::co_insert(coClient::awtRead *_awt, uint32_t _idx)
+	uint32_t coClient::co_insert(coClient::awtRead* _awt, uint32_t _idx)
 	{
 		m_readlist.push_front(_awt);
-		m_process.emplace(_idx, _awt);
+		if (_idx == e_rpc_sys_msg_custom)
+			m_process_list.push_back(_awt);
+		else
+			m_process.emplace(_idx, _awt);
 		return _idx;
 	}
-	uint32_t coClient::co_erase(coClient::awtRead *_awt, uint32_t _idx)
+	uint32_t coClient::co_erase(coClient::awtRead* _awt, uint32_t _idx)
 	{
 		m_readlist.erase(_awt);
-		m_process.erase(_idx);
+		if (_idx == e_rpc_sys_msg_custom)
+			m_process_list.remove(_awt);
+		else
+			m_process.erase(_idx);
 		return _idx;
 	}
 	const coMsg *coClient::get_data()
@@ -160,7 +220,7 @@ namespace ashan
 			auto _awt = ((awtRead *)it);
 			if (_awt->_time > _t)
 				break;
-			_awt->set_return(e_rpc_msg_timeout);
+			_awt->set_return(e_rpc_sys_msg_timeout);
 			_awt->resume_ex();
 		}
 		while ((it = m_writelist.begin()) != m_writelist.end())
@@ -168,7 +228,7 @@ namespace ashan
 			auto _awt = ((awtWrite *)it);
 			if (_awt->_time > _t)
 				break;
-			_awt->set_return(e_rpc_msg_timeout);
+			_awt->set_return(e_rpc_sys_msg_timeout);
 			_awt->resume_ex();
 		}
 		return 0;
@@ -179,7 +239,7 @@ namespace ashan
 		while ((it = m_readlist.begin()) != m_readlist.end())
 		{
 			auto _awt = ((awtRead *)it);
-			_awt->set_return(e_rpc_msg_close);
+			_awt->set_return(e_rpc_sys_msg_close);
 			m_readlist.erase(_awt);
 			_awt->resume_ex();
 		}
@@ -191,7 +251,7 @@ namespace ashan
 		while ((it = m_writelist.begin()) != m_writelist.end())
 		{
 			auto _awt = ((awtWrite *)it);
-			_awt->set_return(e_rpc_msg_close);
+			_awt->set_return(e_rpc_sys_msg_close);
 			m_writelist.erase(_awt);
 			_awt->resume_ex();
 		}
@@ -224,7 +284,8 @@ namespace ashan
 	coClient::awtRead::~awtRead()
 	{
 		m_awaiting = nullptr;
-		_this->co_erase(this, _idx);
+		if (!empty())
+			_this->co_erase(this, _idx);
 	}
 	uint32_t coClient::awtRead::await_resume()
 	{
@@ -235,8 +296,8 @@ namespace ashan
 		_value = _val;
 	}
 	bool coClient::awtRead::await_ready()
-	{
-		if (_idx < e_rpc_msg_timeout)
+	{		
+		if (IS_SUCCESS(_idx))
 			return false;
 		set_return(_idx);
 		return true;
@@ -268,7 +329,8 @@ namespace ashan
 	}
 	bool coClient::awtWrite::await_ready()
 	{
-		return false;
+		assert(_this != nullptr);
+		return !_this->m_config[e_write_ack];
 	}
 	void coClient::awtWrite::await_suspend(std::coroutine_handle<> awaiting)
 	{

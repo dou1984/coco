@@ -1,10 +1,11 @@
 #ifndef CO_FUNC_H
 #define CO_FUNC_H
 #include <functional>
-#include "ioControl.h"
+#include <memory>
 
 namespace ashan
 {	
-	using coFunc = std::function<coTask(ioControl)>;
+	class coClient;
+	using coFunc = std::function<coTask(std::shared_ptr<coClient>)>;
 }
 #endif

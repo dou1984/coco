@@ -9,7 +9,6 @@
 #include "evConnect.h"
 #include "evLoop.h"
 #include "evAddr.h"
-#include "CLog.h"
 #include "basesocket.h"
 
 namespace ashan
@@ -34,10 +33,11 @@ namespace ashan
 			_this->_connect();
 	}
 	void evConnect::_connect()
-	{
+	{		
+		std::string exe;
 		std::string m_ip;
 		int m_port;
-		EVADDR.search(m_Addr, m_ip, m_port);
+		EVADDR.splite(m_Addr, exe, m_ip, m_port);
 		auto err = GetSocketError(m_fd);
 		if (err == 0)
 		{
@@ -53,12 +53,21 @@ namespace ashan
 		ev_io_stop(evLoop::at(m_tag), &m_Read);
 		ev_io_stop(evLoop::at(m_tag), &m_Write);
 	}
-	int evConnect::connect(const char* _ip, int _port)
+	int evConnect::connect(const std::string& _addr)
 	{
 		if (m_fd >= 0)
 		{			
 			return m_fd;
 		}
+		std::string exe;
+		std::string _ip;
+		int _port;
+		if (!EVADDR.splite(_addr, exe, _ip, _port))
+		{
+			return INVALID;
+		}
+		m_Addr = _addr;
+
 		m_fd = ::socket(AF_INET, SOCK_STREAM, 0);
 		if (m_fd < 0) [[unlikely]]
 		{
@@ -67,7 +76,7 @@ namespace ashan
 		struct sockaddr_in addr;
 		addr.sin_family = AF_INET;
 		addr.sin_port = htons(_port);
-		addr.sin_addr.s_addr = inet_addr(_ip);
+		addr.sin_addr.s_addr = inet_addr(_ip.c_str());
 		if (addr.sin_addr.s_addr == INADDR_NONE)
 		{			
 		error_return:
@@ -76,7 +85,6 @@ namespace ashan
 			return m_fd;
 		}
 
-		m_Addr = EVADDR.combine(_ip, _port);
 		fcntl(m_fd, F_SETFL, fcntl(m_fd, F_GETFL, 0) | O_NONBLOCK);
 		if (::connect(m_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
 		{

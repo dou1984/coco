@@ -59,9 +59,9 @@ namespace ashan
 		return again(0, 0);
 	}
 	int evTimer::active()
-	{
-		if (!ev_is_active(&m_data))
-			ev_timer_start(evLoop::at(m_tag), &m_data);
+	{		
+		stop();
+		ev_timer_start(evLoop::at(m_tag), &m_data);
 		return 0;
 	}
 	bool evTimer::is_active()
