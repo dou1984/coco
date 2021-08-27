@@ -1,11 +1,11 @@
 ﻿HELLO_WORLD =
 TARGET = coco
 SUBDIR = 
-CXXFLAGS= -ggdb -O0 -std=c++2a -Wall -fPIC -frtti -fexceptions -W -Wall -Wno-deprecated -Wno-unused-parameter -Wno-unused-variable -fstack-protector-all -fcoroutines
+CXXFLAGS= -ggdb -O2 -std=c++2a -Wall -fPIC -frtti -fexceptions -W -Wall -Wno-deprecated -Wno-unused-parameter -Wno-unused-variable -fstack-protector-all -fcoroutines
 
 INCLUDE= -I../libco
 LIBSDIR= -L../libco
-LIBEXT= -lco -lev
+LIBEXT= -lcoco -lev
 LIBS+= -lpthread -lstdc++ -lm
 LIBS+= $(LIBEXT) $(LIBSDIR)
 
